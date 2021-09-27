@@ -5,7 +5,7 @@
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(target_os = "solid-asp3", feature(solid_ext))]
+#![cfg_attr(target_os = "solid_asp3", feature(solid_ext))]
 
 //! # hyper
 //!

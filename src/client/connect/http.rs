@@ -631,7 +631,7 @@ fn connect(
         use std::os::windows::io::{FromRawSocket, IntoRawSocket};
         TcpSocket::from_raw_socket(socket.into_raw_socket())
     };
-    #[cfg(target_os = "solid-asp3")]
+    #[cfg(target_os = "solid_asp3")]
     let socket = unsafe {
         // Safety: `from_raw_fd` is only safe to call if ownership of the raw
         // file descriptor is transferred. Since we call `into_raw_fd` on the
