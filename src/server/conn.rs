@@ -103,6 +103,7 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_writev: Option<bool>,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
@@ -284,6 +285,7 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            h1_writev: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             mode: ConnectionMode::default(),
@@ -350,8 +352,15 @@ impl<E> Http<E> {
         self
     }
 
-    /// Set whether HTTP/1 connections will write header names as provided
-    /// at the socket level.
+    /// Set whether to support preserving original header cases.
+    ///
+    /// Currently, this will record the original cases received, and store them
+    /// in a private extension on the `Request`. It will also look for and use
+    /// such an extension in any provided `Response`.
+    ///
+    /// Since the relevant extension is still private, there is no way to
+    /// interact with the original cases. The only effect this can have now is
+    /// to forward the cases in a proxy-like fashion.
     ///
     /// Note that this setting does not affect HTTP/2.
     ///
@@ -360,6 +369,26 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set whether HTTP/1 connections should try to use vectored writes,
+    /// or always flatten into a single buffer.
+    ///
+    /// Note that setting this to false may mean more copies of body data,
+    /// but may also improve performance when an IO transport doesn't
+    /// support vectored writes well, such as most TLS implementations.
+    ///
+    /// Setting this to true will force hyper to use queued strategy
+    /// which may eliminate unnecessary cloning on some TLS backends
+    ///
+    /// Default is `auto`. In this mode hyper will try to guess which
+    /// mode to use
+    #[inline]
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
+        self.h1_writev = Some(val);
         self
     }
 
@@ -538,6 +567,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
+            h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
             h2_builder: self.h2_builder,
             mode: self.mode,
@@ -598,6 +628,13 @@ impl<E> Http<E> {
                 }
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
+                }
+                if let Some(writev) = self.h1_writev {
+                    if writev {
+                        conn.set_write_strategy_queue();
+                    } else {
+                        conn.set_write_strategy_flatten();
+                    }
                 }
                 conn.set_flush_pipeline(self.pipeline_flush);
                 if let Some(max) = self.max_buf_size {

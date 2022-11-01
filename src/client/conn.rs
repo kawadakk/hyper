@@ -153,6 +153,7 @@ pub struct Builder {
     pub(super) exec: Exec,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
+    h1_writev: Option<bool>,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_read_buf_exact_size: Option<usize>,
@@ -535,6 +536,7 @@ impl Builder {
         Builder {
             exec: Exec::Default,
             h09_responses: false,
+            h1_writev: None,
             h1_read_buf_exact_size: None,
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
@@ -596,6 +598,23 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections should try to use vectored writes,
+    /// or always flatten into a single buffer.
+    ///
+    /// Note that setting this to false may mean more copies of body data,
+    /// but may also improve performance when an IO transport doesn't
+    /// support vectored writes well, such as most TLS implementations.
+    ///
+    /// Setting this to true will force hyper to use queued strategy
+    /// which may eliminate unnecessary cloning on some TLS backends
+    ///
+    /// Default is `auto`. In this mode hyper will try to guess which
+    /// mode to use
+    pub fn http1_writev(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_writev = Some(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
@@ -607,8 +626,15 @@ impl Builder {
         self
     }
 
-    /// Set whether HTTP/1 connections will write header names as provided
-    /// at the socket level.
+    /// Set whether to support preserving original header cases.
+    ///
+    /// Currently, this will record the original cases received, and store them
+    /// in a private extension on the `Response`. It will also look for and use
+    /// such an extension in any provided `Request`.
+    ///
+    /// Since the relevant extension is still private, there is no way to
+    /// interact with the original cases. The only effect this can have now is
+    /// to forward the cases in a proxy-like fashion.
     ///
     /// Note that this setting does not affect HTTP/2.
     ///
@@ -837,6 +863,13 @@ impl Builder {
                 Proto::Http1 => {
                     let mut conn = proto::Conn::new(io);
                     conn.set_h1_parser_config(opts.h1_parser_config);
+                    if let Some(writev) = opts.h1_writev {
+                        if writev {
+                            conn.set_write_strategy_queue();
+                        } else {
+                            conn.set_write_strategy_flatten();
+                        }
+                    }
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
                     }
