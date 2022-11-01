@@ -59,13 +59,6 @@
 
 #[doc(hidden)]
 pub use http;
-#[cfg(any(
-    feature = "http1",
-    feature = "http2",
-    all(feature = "client", feature = "tcp")
-))]
-#[macro_use]
-extern crate tracing;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
@@ -87,7 +80,6 @@ mod error;
 mod ext;
 #[cfg(test)]
 mod mock;
-#[cfg(any(feature = "http1", feature = "http2",))]
 pub mod rt;
 pub mod service;
 pub mod upgrade;
@@ -101,7 +93,7 @@ cfg_proto! {
 }
 
 cfg_feature! {
-    #![all(feature = "client")]
+    #![feature = "client"]
 
     pub mod client;
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -110,10 +102,9 @@ cfg_feature! {
 }
 
 cfg_feature! {
-    #![all(feature = "server")]
+    #![feature = "server"]
 
     pub mod server;
-    #[cfg(any(feature = "http1", feature = "http2"))]
     #[doc(no_inline)]
     pub use crate::server::Server;
 }
