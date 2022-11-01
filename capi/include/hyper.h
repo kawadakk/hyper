@@ -207,7 +207,7 @@ typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
-typedef void (*hyper_request_on_informational_callback)(void*, const struct hyper_response*);
+typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
 
 typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
 
@@ -469,7 +469,7 @@ enum hyper_code hyper_request_set_body(struct hyper_request *req, struct hyper_b
  `hyper_response *` which can be inspected as any other response. The
  body of the response will always be empty.
 
- NOTE: The `const hyper_response *` is just borrowed data, and will not
+ NOTE: The `hyper_response *` is just borrowed data, and will not
  be valid after the callback finishes. You must copy any data you wish
  to persist.
  */
@@ -718,7 +718,9 @@ struct hyper_waker *hyper_context_waker(struct hyper_context *cx);
 void hyper_waker_free(struct hyper_waker *waker);
 
 /*
- Free a waker that hasn't been woken.
+ Wake up the task associated with a waker.
+
+ NOTE: This consumes the waker. You should not use or free the waker afterwards.
  */
 void hyper_waker_wake(struct hyper_waker *waker);
 
